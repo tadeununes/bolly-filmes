@@ -43,6 +43,7 @@ public class FilmeDetalheFragment extends Fragment {
         RatingBar avaliacao = view.findViewById(R.id.item_avaliacao);
         avaliacao.setRating(itemFilme.getAvaliacao());
 
-        return inflater.inflate(R.layout.fragment_filme_detalhe, container, false);
+        return view;
+        //return inflater.inflate(R.layout.fragment_filme_detalhe, container, false);
     }
 }
