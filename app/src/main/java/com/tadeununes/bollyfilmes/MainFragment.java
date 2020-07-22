@@ -1,6 +1,8 @@
 package com.tadeununes.bollyfilmes;
 
 import android.content.Intent;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -15,7 +17,15 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.Buffer;
 import java.util.ArrayList;
+import java.util.List;
 
 public class MainFragment extends Fragment {
 
@@ -40,12 +50,6 @@ public class MainFragment extends Fragment {
         list = view.findViewById(R.id.list_filmes);
 
         final ArrayList<ItemFilme> arrayList = new ArrayList<>();
-        arrayList.add(new ItemFilme("Homem Aranha", "Filme de heroi picado por uma aranha", "09/04/2016", 4));
-        arrayList.add(new ItemFilme("Homem Cobra", "Filme de heroi picado por uma Cobra", "01/06/2017", 2));
-        arrayList.add(new ItemFilme("Homem Javali", "Filme de heroi mordido por um Javali", "22/07/2018", 4));
-        arrayList.add(new ItemFilme("Homem Passaro", "Filme de heroi bicado por um Passaro", "18/09/2019", 5));
-        arrayList.add(new ItemFilme("Homem Cachorro", "Filme de heroi mordido por um Cachorro", "12/01/2020", 3.5f));
-        arrayList.add(new ItemFilme("Homem Gato", "Filme de heroi arranhado por um Gato", "30/04/2015", 1.8f));
 
         adapter = new FilmesAdapter(getContext(), arrayList);
         adapter.setUseFilmeDestaque(useFilmeDestaque);
@@ -65,6 +69,8 @@ public class MainFragment extends Fragment {
         if (savedInstanceState != null && savedInstanceState.containsKey(KEY_POSICAO)){
             posicaoItem = savedInstanceState.getInt(KEY_POSICAO);
         }
+
+        new FilmesAsyncTask().execute();
 
         return view;
     }
@@ -113,6 +119,74 @@ public class MainFragment extends Fragment {
             adapter.setUseFilmeDestaque(useFilmeDestaque);
         }
 
+    }
+
+    public class FilmesAsyncTask extends AsyncTask<Void, Void, List<ItemFilme>> {
+
+        @Override //é onde se executa a ação na tread de background
+        protected List<ItemFilme> doInBackground(Void... params) {
+
+            // https://api.themoviedb.org/3/movie/popular?api_key=3d9b8381a3777be769a59c3081d9227e
+            //https://api.themoviedb.org/3/movie/76341?api_key=<<api_key>>&language=pt-BR
+
+            HttpURLConnection urlConnection = null;
+            BufferedReader reader = null;
+
+            try {
+                String urlBase = "https://api.themoviedb.org/3/movie/popular?";
+                String apiKey = "api_key";
+                String language = "language";
+
+                Uri uriApi = Uri.parse(urlBase).buildUpon()
+                        .appendQueryParameter(apiKey, BuildConfig.TMDB_API_KEY)
+                        .appendQueryParameter(language, "pt-BR")
+                        .build();
+                URL url = new URL(uriApi.toString());
+                urlConnection = (HttpURLConnection) url.openConnection();
+                urlConnection.setRequestMethod("GET");
+                urlConnection.connect();
+
+                InputStream inputStream = urlConnection.getInputStream();
+                if (inputStream ==null){
+                    return null;
+                }
+
+                reader = new BufferedReader(new InputStreamReader(inputStream));
+
+                String linha;
+                StringBuffer buffer = new StringBuffer();
+                while ((linha=reader.readLine()) != null){
+                    buffer.append(linha);
+                    buffer.append("\n");
+                }
+
+                return JsonUtil.fromJsonToList(buffer.toString());
+
+            } catch (IOException e){
+                e.printStackTrace();
+            } finally {
+                if (urlConnection != null){
+                    urlConnection.disconnect();
+                }
+                if (reader != null){
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+            return null;
+
+        }
+
+        @Override // é onde se executa ações após a finalização da tread de background
+        protected void onPostExecute(List<ItemFilme> itemFilmes) {
+            adapter.clear();
+            adapter.addAll(itemFilmes);
+            adapter.notifyDataSetChanged();
+        }
     }
 
     public interface Callback {
